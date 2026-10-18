@@ -1,0 +1,790 @@
+<title>Project Atta</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600;700&family=Mukta:wght@400;600&display=swap">
+<style>
+/* Layout: one narrow phone-like column; the builder is a numbered 4-step flow (size → grains → grind → slot) with live nutrition and a sticky progress + price bar */
+:root {
+  --bg: #f2f4ee;
+  --surface: #ffffff;
+  --ink: #1b2a21;
+  --muted: #5b6b60;
+  --line: #d7ddd2;
+  --accent: #c98c0c;      /* haldi / turmeric */
+  --accent-ink: #1b2a21;
+  --stone: #2f4237;       /* chakki stone */
+  --stone-ink: #f2f4ee;
+  --warn: #a5401a;
+  --wa: #1f8f52;
+  --wa-ink: #ffffff;
+  --g-wheat: #d9a43a;
+  --g-ragi: #8a4b33;
+  --g-jowar: #cdb888;
+  --g-bajra: #7f8f6a;
+  --g-barley: #b07a43;
+  --g-maize: #f0c419;
+  --n-carb: #d9a43a;
+  --n-prot: #4f7a5c;
+  --n-fib: #8a6b3f;
+  --n-fat: #c7b9a0;
+  --f-display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --f-body: "Instrument Sans", "Helvetica Neue", system-ui, sans-serif;
+  --f-hi: "Mukta", "Noto Sans Devanagari", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131a15; --surface: #1c251f; --ink: #e9eee6; --muted: #a3b1a6; --line: #2e3a32; --accent: #e5aa2c; --accent-ink: #131a15;
+    --stone: #2a3a30; --stone-ink: #e9eee6; --warn: #ff9b73; --n-prot: #79ad87; --n-fib: #b8915a; --n-fat: #8d826f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131a15; --surface: #1c251f; --ink: #e9eee6; --muted: #a3b1a6; --line: #2e3a32; --accent: #e5aa2c; --accent-ink: #131a15;
+  --stone: #2a3a30; --stone-ink: #e9eee6; --warn: #ff9b73; --n-prot: #79ad87; --n-fib: #b8915a; --n-fat: #8d826f; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { overflow-x: hidden; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 16px; line-height: 1.55;
+  padding: 0 16px 130px;
+}
+.wrap { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; padding-block: 24px; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+p { margin: 0; }
+.hi { font-family: var(--f-hi); }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.num { font-variant-numeric: tabular-nums; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.note { font-size: 13px; color: var(--muted); }
+button, .wa { transition: background-color .15s ease, border-color .15s ease, opacity .15s ease, box-shadow .15s ease; -webkit-tap-highlight-color: transparent; }
+button:not(:disabled):active { opacity: .7; }
+.wa:active { opacity: .8; }
+.step, .details { scroll-margin-top: 76px; }
+
+/* Step tracker: sticky inside the builder only */
+.tracker { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 4; margin-inline: -16px; padding: 8px 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.tracker ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.tracker button { width: 100%; background: none; border: 0; padding: 4px 0; display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 48px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.tracker .c { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--line); display: grid; place-items: center; font-family: var(--f-display); font-size: 12px; font-weight: 700; color: var(--muted); background: var(--surface); }
+.tracker .done .c { background: var(--stone); border-color: var(--stone); color: var(--stone-ink); }
+.tracker .done { color: var(--ink); }
+.tracker .now .c { border-color: var(--accent); color: var(--ink); }
+.tracker .now { color: var(--ink); }
+.ferr { color: var(--warn); font-size: 13px; font-weight: 600; margin-top: -2px; }
+.ferr:empty { display: none; }
+.undo { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); }
+.undo[hidden] { display: none !important; }
+.undo button { border: 0; background: none; font-weight: 700; color: var(--ink); text-decoration: underline; padding: 8px 4px; min-height: 40px; }
+.fill-state svg { vertical-align: -1px; margin-left: 4px; }
+
+/* Hero */
+.hero { display: flex; flex-direction: column; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: 700; font-size: 18px; }
+.stone-mark { width: 30px; height: 30px; border-radius: 50%; background: var(--stone); position: relative; flex: none; }
+.stone-mark::after { content: ""; position: absolute; inset: 11px; border-radius: 50%; background: var(--accent); }
+.hero h1 { font-size: clamp(34px, 10vw, 50px); line-height: 1; font-weight: 800; }
+.hero h1 span { display: block; }
+.hero h1 span:last-child { color: var(--accent); }
+.hero .hi { font-size: 19px; color: var(--muted); }
+.hero .lede { font-size: 17px; }
+.pills { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.pills li { font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+.nutri { padding: 0; gap: 0; }
+.nutri summary { list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; cursor: pointer; min-height: 52px; }
+.nutri summary::-webkit-details-marker { display: none; }
+.nutri-sum { font-size: 14px; font-weight: 600; min-width: 0; }
+.nutri-sum b { font-family: var(--f-display); font-size: 16px; }
+.chev { width: 10px; height: 10px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); flex: none; transition: transform .15s ease; }
+.nutri[open] .chev { transform: rotate(-135deg); }
+.nutri-in { display: flex; flex-direction: column; gap: 12px; padding: 0 16px 16px; }
+.nutri-in .toggle { align-self: flex-start; }
+.note a { color: inherit; }
+.pilot-tag { align-self: flex-start; font-size: 13px; font-weight: 600; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); }
+
+/* Builder steps */
+.builder { display: flex; flex-direction: column; gap: 28px; }
+.section-head { display: flex; flex-direction: column; gap: 6px; }
+.section-head h2 { font-size: 28px; font-weight: 700; }
+.step { display: flex; flex-direction: column; gap: 12px; }
+.step-head { display: flex; align-items: center; gap: 10px; }
+.step-head .n { width: 28px; height: 28px; flex: none; border-radius: 50%; background: var(--stone); color: var(--stone-ink); display: grid; place-items: center; font-family: var(--f-display); font-weight: 700; font-size: 14px; }
+.step-head h3 { font-size: 19px; font-weight: 700; }
+.step-head .side { margin-left: auto; font-size: 13px; color: var(--muted); }
+
+.sizes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.sizes button { padding: 10px 0; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; font-family: var(--f-display); font-size: 17px; line-height: 1.1; }
+.sizes button small { display: block; font-family: var(--f-body); font-weight: 500; font-size: 12px; color: var(--muted); }
+.sizes button[aria-pressed="true"] { background: var(--stone); color: var(--stone-ink); border-color: var(--stone); }
+.sizes button[aria-pressed="true"] small { color: var(--stone-ink); opacity: .8; }
+
+.presets { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.preset { padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); text-align: left; min-width: 0; }
+.preset.wide { grid-column: 1 / -1; }
+.preset b { display: block; font-size: 15px; }
+.preset small { color: var(--muted); font-size: 12px; }
+.preset[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+
+/* Sack: progress toward chosen size */
+.sack { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.fill-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.fill-head .kg { font-family: var(--f-display); font-size: 28px; font-weight: 700; line-height: 1; }
+.fill-head .kg span { font-size: 17px; color: var(--muted); font-weight: 500; }
+.fill-state { font-size: 14px; font-weight: 600; color: var(--muted); }
+.fill-state.done { color: var(--n-prot); }
+.comp { display: flex; height: 26px; border-radius: 8px; overflow: hidden; background: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px calc(100% / var(--ticks, 20))); border: 1px solid var(--line); }
+.comp i { display: block; height: 100%; transition: width .25s ease; }
+.fill-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 8px 14px; font-size: 14px; font-weight: 600; min-height: 40px; }
+.chip:disabled { opacity: .4; cursor: default; }
+
+.grains { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.grain { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding-block: 12px; border-top: 1px solid var(--line); }
+.grain:first-child { border-top: 0; }
+.gname { min-width: 0; display: grid; grid-template-columns: 12px 1fr; column-gap: 10px; align-items: baseline; }
+.dot { width: 12px; height: 12px; border-radius: 50%; align-self: center; }
+.gname b { font-weight: 600; }
+.gname .hi { color: var(--muted); margin-left: 6px; font-size: 15px; }
+.gname small { grid-column: 2; display: block; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.gname .share { grid-column: 2; font-size: 12px; font-weight: 600; color: var(--ink); }
+.stepper { display: flex; align-items: center; gap: 8px; }
+.stepper button { width: 48px; height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); font-size: 22px; line-height: 1; }
+.stepper button.plus { background: var(--stone); color: var(--stone-ink); border-color: var(--stone); }
+.stepper button:disabled { opacity: .3; cursor: default; }
+.stepper output { min-width: 50px; text-align: center; font-weight: 700; }
+.grain.on .stepper output { color: var(--ink); }
+.grain:not(.on) .stepper output { color: var(--muted); font-weight: 500; }
+
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.seg.two { grid-template-columns: repeat(2, 1fr); }
+.seg button { min-height: 52px; padding: 10px 6px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 14px; font-weight: 600; }
+.seg button small { display: block; color: var(--muted); font-size: 12px; font-weight: 400; }
+.seg button[aria-pressed="true"] { background: var(--stone); color: var(--stone-ink); border-color: var(--stone); }
+.seg button[aria-pressed="true"] small { color: var(--stone-ink); opacity: .8; }
+
+/* Nutrition */
+.nutri { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.nutri-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.nutri-top h3 { font-size: 19px; }
+.toggle { display: inline-grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 999px; padding: 3px; background: var(--bg); }
+.toggle button { border: 0; background: transparent; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.toggle button[aria-pressed="true"] { background: var(--stone); color: var(--stone-ink); }
+.kcal { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.kcal b { font-family: var(--f-display); font-size: 34px; line-height: 1; }
+.kcal span { color: var(--muted); font-size: 14px; }
+.macro-bar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: var(--line); }
+.macro-bar i { display: block; height: 100%; transition: width .25s ease; }
+.nrows { display: flex; flex-direction: column; }
+.nrow { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: baseline; padding-block: 9px; border-top: 1px solid var(--line); font-size: 15px; }
+.nrow:first-child { border-top: 0; }
+.nrow .lbl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.nrow .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.nrow .val { font-weight: 700; text-align: right; }
+.nrow .cmp { font-size: 12px; color: var(--muted); min-width: 56px; text-align: right; }
+.nhead { font-size: 13px; color: var(--muted); font-weight: 600; border-top: 0; padding-top: 0; }
+.nrow .cmp.up { color: var(--n-prot); font-weight: 600; }
+.nempty { color: var(--muted); font-size: 14px; }
+
+.breakdown { display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.breakdown div { display: flex; justify-content: space-between; gap: 12px; }
+.breakdown .tot { font-weight: 700; font-size: 16px; border-top: 1px solid var(--line); padding-top: 8px; margin-top: 2px; }
+
+/* Sticky bar */
+.bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; background: var(--stone); color: var(--stone-ink);
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px)); }
+.bar-in { max-width: 560px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.bar .price { font-family: var(--f-display); font-size: 22px; font-weight: 700; line-height: 1.1; }
+.bar .perkg { font-size: 13px; opacity: .85; }
+.bar-prog { height: 4px; background: rgba(255,255,255,.18); border-radius: 2px; margin-top: 6px; overflow: hidden; width: 140px; max-width: 40vw; }
+.bar-prog i { display: block; height: 100%; background: var(--accent); transition: width .25s ease; }
+.cta { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 14px; padding: 12px 16px; font-weight: 700; font-size: 15px; min-height: 48px; flex: none; }
+.cta:disabled { opacity: .5; cursor: default; }
+
+/* Details form + WhatsApp */
+.details { gap: 14px; }
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 14px; font-weight: 600; }
+.field.full, .ferr.full { grid-column: 1 / -1; }
+.field em { font-style: normal; font-weight: 400; color: var(--muted); }
+.field input, .field select { width: 100%; min-width: 0; font: 16px var(--f-body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; min-height: 48px; }
+.field input:focus-visible, .field select:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.field input[aria-invalid="true"] { border-color: var(--warn); }
+.err { color: var(--warn); font-size: 14px; font-weight: 600; }
+.err:empty { display: none; }
+.wa { display: flex; align-items: center; justify-content: center; gap: 10px; background: var(--wa); color: var(--wa-ink); border-radius: 14px; padding: 14px 18px; min-height: 54px; font-weight: 700; font-size: 17px; text-decoration: none; }
+.wa:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wa[aria-disabled="true"] { opacity: .5; }
+.preview summary { font-size: 14px; font-weight: 600; cursor: pointer; color: var(--muted); }
+.preview[open] { display: flex; flex-direction: column; gap: 10px; }
+.preview .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.details pre, .msg pre { margin: 0; white-space: pre-wrap; word-break: break-word; background: var(--surface); border: 1px dashed var(--line); border-radius: 14px; padding: 14px; font: 14px/1.5 var(--f-body); }
+.msg .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ghost { background: transparent; border: 1px solid var(--ink); border-radius: 12px; padding: 10px 14px; font-weight: 600; min-height: 44px; }
+.ghost:disabled { opacity: .4; cursor: default; }
+.toast { font-size: 14px; font-weight: 600; color: var(--muted); }
+
+/* How it works / details */
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 18px; counter-reset: s; }
+.steps li { display: grid; grid-template-columns: 36px 1fr; gap: 14px; counter-increment: s; }
+.steps li::before { content: counter(s); width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--accent); display: grid; place-items: center; font-family: var(--f-display); font-weight: 700; }
+.steps b { display: block; font-size: 17px; }
+.steps p { color: var(--muted); font-size: 15px; }
+.facts { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.facts div { background: var(--surface); padding: 14px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.facts b { font-family: var(--f-display); font-size: 20px; }
+.facts span { font-size: 13px; color: var(--muted); }
+.faq { display: flex; flex-direction: column; }
+.faq details { border-top: 1px solid var(--line); padding-block: 14px; }
+.faq details:last-child { border-bottom: 1px solid var(--line); }
+.faq summary { font-weight: 600; cursor: pointer; }
+.faq details p { color: var(--muted); margin-top: 8px; font-size: 15px; }
+.tablewrap { overflow-x: auto; margin-top: 10px; }
+.tablewrap table { border-collapse: collapse; font-size: 13px; width: 100%; min-width: 420px; }
+.tablewrap th, .tablewrap td { text-align: right; padding: 6px 6px; border-bottom: 1px solid var(--line); }
+.tablewrap th:first-child, .tablewrap td:first-child { text-align: left; }
+.tablewrap th { color: var(--muted); font-weight: 600; }
+footer { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+footer a { color: inherit; }
+
+@media (max-width: 380px) {
+  .sizes button { font-size: 15px; }
+  .nrow .cmp { min-width: 0; }
+}
+@media (prefers-reduced-motion: reduce) { .comp i, .macro-bar i, .bar-prog i { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="brand"><span class="stone-mark" aria-hidden="true"></span><span id="brandName">Project Atta</span></div>
+    <h1><span>Your Grain.</span><span>Your Mix.</span><span>Your Atta.</span></h1>
+    <p class="lede">Fresh chakki atta in your own mix, delivered to your flat.</p>
+    <ul class="pills">
+      <li>Ground after you order</li>
+      <li>Free delivery</li>
+      <li>UPI or cash</li>
+      <li>Purvanchal Royal City</li>
+    </ul>
+  </header>
+
+  <section class="builder" aria-label="Build your order">
+    <nav class="tracker" aria-label="Order steps"><ol id="tracker"></ol></nav>
+
+    <div class="step" id="stepSize">
+      <div class="step-head"><span class="n">1</span><h3>How much atta?</h3><span class="side" id="sizeNote"></span></div>
+      <div class="sizes" role="group" aria-label="Order size" id="sizes"></div>
+    </div>
+
+    <div class="step" id="stepGrains">
+      <div class="step-head"><span class="n">2</span><h3>Choose grains</h3></div>
+      <div class="presets" role="group" aria-label="Start from" id="presets"></div>
+
+      <div class="sack">
+        <div class="fill-head">
+          <span class="kg num" id="fillKg">0 <span>of 10 kg</span></span>
+          <span class="fill-state" id="fillState" role="status"></span>
+        </div>
+        <div class="comp" id="comp" aria-hidden="true"></div>
+        <div class="fill-actions">
+          <button class="chip" type="button" id="fillWheat">Fill rest with wheat</button>
+          <button class="chip" type="button" id="clearAll">Clear</button>
+        </div>
+        <div class="undo" id="undoRow" role="status" hidden><span>Cleared.</span><button type="button" id="undoBtn">Undo</button></div>
+        <ul class="grains" id="grains"></ul>
+      </div>
+
+      <details class="nutri" id="nutri">
+        <summary><span class="nutri-sum" id="nutriSum">Nutrition</span><span class="chev" aria-hidden="true"></span></summary>
+        <div class="nutri-in">
+          <div class="toggle" role="group" aria-label="Show nutrition for">
+            <button type="button" id="per100" aria-pressed="true">100 g atta</button>
+            <button type="button" id="perRoti" aria-pressed="false">1 roti</button>
+          </div>
+          <div id="nutriBody"></div>
+          <p class="note">Source: <a href="https://www.nin.res.in/ebooks/IFCT2017.pdf" target="_blank" rel="noopener">IFCT 2017, ICMR–NIN</a>. A guide, not a lab test.</p>
+        </div>
+      </details>
+    </div>
+
+    <div class="step" id="stepGrind">
+      <div class="step-head"><span class="n">3</span><h3>Grind and slot</h3></div>
+      <div class="seg" role="group" aria-label="Grind" id="grind"></div>
+      <div class="seg two" role="group" aria-label="Delivery slot" id="slot"></div>
+    </div>
+
+    <form class="step details" id="msgBox" novalidate>
+      <div class="step-head"><span class="n">4</span><h3>Your details</h3></div>
+      <div class="fields">
+        <label class="field full" for="fName"><span>Name</span>
+          <input id="fName" name="name" autocomplete="name" autocapitalize="words" enterkeyhint="next" placeholder="e.g. Priya Sharma" required aria-describedby="eName"></label>
+        <p class="ferr full" id="eName"></p>
+        <label class="field full" for="fSociety"><span>Society</span>
+          <select id="fSociety" name="society"></select></label>
+        <label class="field" for="fTower"><span>Tower</span>
+          <input id="fTower" name="tower" autocapitalize="characters" enterkeyhint="next" placeholder="e.g. B" required aria-describedby="eTower"></label>
+        <label class="field" for="fFlat"><span>Flat</span>
+          <input id="fFlat" name="flat" inputmode="numeric" enterkeyhint="next" placeholder="e.g. 1204" required aria-describedby="eFlat"></label>
+        <p class="ferr" id="eTower"></p><p class="ferr" id="eFlat"></p>
+        <label class="field full" for="fLandmark"><span>Note <em>(optional)</em></span>
+          <input id="fLandmark" name="landmark" enterkeyhint="done" placeholder="e.g. leave with guard"></label>
+      </div>
+      <div class="field full">
+        <span>Payment</span>
+        <div class="seg two" role="group" aria-label="Payment" id="pay"></div>
+      </div>
+
+      <div class="sack breakdown num" id="breakdown"></div>
+
+      <p class="err" id="formErr" role="alert"></p>
+      <a class="wa" id="waBtn" href="#" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.2c0-.1-.2-.2-.4-.3Z"/></svg>
+        <span id="waLabel">Send order on WhatsApp</span>
+      </a>
+      <p class="note" id="waNote"></p>
+
+      <details class="preview">
+        <summary>See message</summary>
+        <pre id="msg"></pre>
+        <div class="row">
+          <button class="ghost" id="copyBtn" type="button">Copy message</button>
+          <span class="toast" id="toast" role="status"></span>
+        </div>
+      </details>
+    </form>
+  </section>
+
+  <footer>Questions? Ask in the society WhatsApp group. Prices are pilot estimates.</footer>
+</div>
+
+<div class="bar">
+  <div class="bar-in">
+    <div>
+      <div class="price num" id="barPrice">₹0</div>
+      <div class="perkg num" id="barPerKg">Pick grains to fill your bag</div>
+      <div class="bar-prog" aria-hidden="true"><i id="barProg" style="width:0"></i></div>
+    </div>
+    <button class="cta" id="barCta" type="button">Get order message</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  const BRAND = "Project Atta";
+  // Organiser's WhatsApp number with country code, digits only (e.g. "919876543210").
+  // Leave empty and WhatsApp lets the customer choose who to send to.
+  const WHATSAPP_NUMBER = "";
+  const SOCIETIES = ["Purvanchal Royal City", "Other society (write it under landmark)"];
+  const PAYS = [{ id: "upi", name: "UPI", t: "Pay after confirmation" }, { id: "cod", name: "Cash", t: "Pay on delivery" }];
+  // Pilot placeholder prices, paise per kg.
+  const S = { step: 500, sizes: [5000, 10000, 15000, 20000, 25000], grindPerKg: 500, delivery: 0, rotiGrams: 35 };
+
+  // Nutrition per 100 g raw whole grain, IFCT 2017 (ICMR-NIN). Energy kJ ÷ 4.18 = kcal.
+  // carb = available carbohydrate (fibre counted separately). ca, fe in mg.
+  const GRAINS = [
+    { id: "wheat",  name: "Wheat",  hi: "गेहूं", price: 4000, color: "var(--g-wheat)",  tip: "Soft rotis",
+      n: { kj: 1347, carb: 64.72, prot: 10.59, fib: 11.23, fat: 1.47, ca: 39.4, fe: 3.97 } },
+    { id: "ragi",   name: "Ragi",   hi: "रागी",  price: 7000, color: "var(--g-ragi)",   tip: "Most calcium",
+      n: { kj: 1342, carb: 66.82, prot: 7.16, fib: 11.18, fat: 1.92, ca: 364, fe: 4.62 } },
+    { id: "jowar",  name: "Jowar",  hi: "ज्वार", price: 6000, color: "var(--g-jowar)",  tip: "Light, mild",
+      n: { kj: 1398, carb: 67.68, prot: 9.97, fib: 10.22, fat: 1.73, ca: 27.6, fe: 3.95 } },
+    { id: "bajra",  name: "Bajra",  hi: "बाजरा", price: 5000, color: "var(--g-bajra)",  tip: "Most iron",
+      n: { kj: 1456, carb: 61.78, prot: 10.96, fib: 11.49, fat: 5.43, ca: 27.4, fe: 6.42 } },
+    { id: "barley", name: "Barley", hi: "जौ",    price: 6500, color: "var(--g-barley)", tip: "Most fibre",
+      n: { kj: 1321, carb: 61.29, prot: 10.94, fib: 15.64, fat: 1.30, ca: 28.6, fe: 1.56 } },
+    { id: "maize",  name: "Maize",  hi: "मक्का", price: 4500, color: "var(--g-maize)",  tip: "Makki taste",
+      n: { kj: 1398, carb: 64.77, prot: 8.80, fib: 12.24, fat: 3.77, ca: 8.9, fe: 2.49 } }
+  ];
+  const NUTR = [
+    { k: "carb", label: "Carbohydrates", unit: "g", color: "var(--n-carb)", d: 1 },
+    { k: "prot", label: "Protein",       unit: "g", color: "var(--n-prot)", d: 1 },
+    { k: "fib",  label: "Fibre",         unit: "g", color: "var(--n-fib)",  d: 1 },
+    { k: "fat",  label: "Fat",           unit: "g", color: "var(--n-fat)",  d: 1 },
+    { k: "ca",   label: "Calcium",       unit: "mg", d: 0 },
+    { k: "fe",   label: "Iron",          unit: "mg", d: 1 }
+  ];
+  const PRESETS = [
+    { id: "custom", name: "Custom",     desc: "Pick your own grains and kilos", ratio: {} },
+    { id: "wheat",  name: "Pure Wheat", desc: "Chakki-fresh wheat",         ratio: { wheat: 10000 } },
+    { id: "multi",  name: "Multigrain", desc: "Wheat, jowar, bajra, ragi", ratio: { wheat: 7000, jowar: 1000, bajra: 1000, ragi: 1000 } },
+    { id: "fibre",  name: "High Fibre", desc: "Wheat, barley, jowar, ragi", ratio: { wheat: 6000, barley: 1500, jowar: 1500, ragi: 1000 } },
+    { id: "ragi",   name: "Ragi Mix",   desc: "Wheat, ragi, jowar",         ratio: { wheat: 7000, ragi: 2000, jowar: 1000 } }
+  ];
+  const GRINDS = [
+    { id: "fine", name: "Fine", hi: "बारीक" },
+    { id: "medium", name: "Medium", hi: "मध्यम" },
+    { id: "coarse", name: "Coarse", hi: "मोटा" }
+  ];
+  const SLOTS = [
+    { id: "am", name: "Morning", t: "7–9 AM" },
+    { id: "pm", name: "Evening", t: "6–8 PM" }
+  ];
+
+  const $ = (id) => document.getElementById(id);
+  const inr = (p) => "₹" + (p / 100).toLocaleString("en-IN", { maximumFractionDigits: p % 100 ? 2 : 0, minimumFractionDigits: p % 100 ? 2 : 0 });
+  const kgNum = (g) => (g / 1000).toLocaleString("en-IN", { maximumFractionDigits: 1 });
+  const kg = (g) => kgNum(g) + " kg";
+  const fix = (v, d) => v.toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
+
+  let state = { grams: {}, preset: "custom", size: 10000, grind: "medium", slot: "am", per: "100", pay: "upi" };
+  try {
+    const saved = JSON.parse(localStorage.getItem("atta-blend-v2") || "null");
+    if (saved && saved.grams && S.sizes.includes(saved.size)) state = Object.assign(state, saved);
+  } catch (e) {}
+  const save = () => { try { localStorage.setItem("atta-blend-v2", JSON.stringify(state)); } catch (e) {} };
+
+  const FIELDS = { name: "fName", society: "fSociety", tower: "fTower", flat: "fFlat", landmark: "fLandmark" };
+  let details = { name: "", society: SOCIETIES[0], tower: "", flat: "", landmark: "" };
+  try {
+    const d = JSON.parse(localStorage.getItem("atta-details") || "null");
+    if (d) details = Object.assign(details, d);
+  } catch (e) {}
+  const saveDetails = () => { try { localStorage.setItem("atta-details", JSON.stringify(details)); } catch (e) {} };
+  const missing = () => ["name", "tower", "flat"].filter((k) => !details[k].trim());
+  const ERR = { name: ["eName", "Enter your name"], tower: ["eTower", "Enter your tower"], flat: ["eFlat", "Enter your flat number"] };
+  function showFieldError(k, on) {
+    if (!ERR[k]) return;
+    $(ERR[k][0]).textContent = on ? ERR[k][1] : "";
+    if (on) $(FIELDS[k]).setAttribute("aria-invalid", "true"); else $(FIELDS[k]).removeAttribute("aria-invalid");
+  }
+  const CHECK = '<svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 8.5l3 3 7-7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  let lastCleared = null, undoTimer = null;
+
+  const totalOf = () => GRAINS.reduce((a, g) => a + (state.grams[g.id] || 0), 0);
+
+  // Ratios (basis points) → grams in step amounts, each chosen grain at least one step, largest grain absorbs rounding.
+  function scale(ratio, total) {
+    const ids = Object.keys(ratio).filter((id) => ratio[id] > 0);
+    const out = {};
+    let sum = 0, big = null;
+    ids.forEach((id) => {
+      const g = Math.max(S.step, Math.round(total * ratio[id] / 10000 / S.step) * S.step);
+      out[id] = g; sum += g;
+      if (!big || ratio[id] > ratio[big]) big = id;
+    });
+    if (big) out[big] += total - sum;
+    return out;
+  }
+  function currentRatio() {
+    const t = totalOf(), r = {};
+    if (!t) return r;
+    GRAINS.forEach((g) => { if (state.grams[g.id]) r[g.id] = state.grams[g.id] / t * 10000; });
+    return r;
+  }
+
+  function packSplit(total) {
+    const packs = [];
+    let left = total;
+    for (const size of [10000, 5000]) {
+      const n = Math.floor(left / size);
+      if (n) { packs.push([size, n]); left -= n * size; }
+    }
+    if (left) packs.push([left, 1]);
+    return packs;
+  }
+  const packText = (t) => packSplit(t).map(([s, n]) => n + " × " + kg(s) + " bag" + (n > 1 ? "s" : "")).join(" + ");
+
+  function price() {
+    let grain = 0;
+    const total = totalOf();
+    GRAINS.forEach((g) => { grain += Math.round((state.grams[g.id] || 0) * g.price / 1000); });
+    const grind = Math.round(total * S.grindPerKg / 1000);
+    const sum = grain + grind + S.delivery;
+    return { grain, grind, total, sum, perKg: total ? Math.round(sum * 1000 / total) : 0 };
+  }
+
+  // Weighted nutrition per 100 g of the blend.
+  function nutrition() {
+    const t = totalOf();
+    if (!t) return null;
+    const out = { kcal: 0 };
+    NUTR.forEach((n) => { out[n.k] = 0; });
+    GRAINS.forEach((g) => {
+      const w = (state.grams[g.id] || 0) / t;
+      if (!w) return;
+      out.kcal += w * g.n.kj / 4.18;
+      NUTR.forEach((n) => { out[n.k] += w * g.n[n.k]; });
+    });
+    return out;
+  }
+
+  function pressGroup(el, items, key, html) {
+    el.innerHTML = "";
+    items.forEach((it) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(state[key] === it.id));
+      b.innerHTML = html(it);
+      b.addEventListener("click", () => { state[key] = it.id; save(); render(); });
+      el.appendChild(b);
+    });
+  }
+
+  function renderSizes() {
+    const el = $("sizes");
+    el.innerHTML = "";
+    S.sizes.forEach((s) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.setAttribute("aria-pressed", String(state.size === s));
+      b.innerHTML = kgNum(s) + "<small>kg</small>";
+      b.addEventListener("click", () => setSize(s));
+      el.appendChild(b);
+    });
+    $("sizeNote").textContent = "≈ " + Math.round(state.size / S.rotiGrams / 10) * 10 + " rotis";
+  }
+
+  function setSize(s) {
+    const r = state.preset !== "custom" ? PRESETS.find((p) => p.id === state.preset).ratio : currentRatio();
+    state.size = s;
+    state.grams = Object.keys(r).length ? scale(r, s) : {};
+    save(); render();
+  }
+
+  function renderPresets() {
+    const el = $("presets");
+    el.innerHTML = "";
+    PRESETS.forEach((p) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "preset" + (p.id === "custom" ? " wide" : "");
+      b.setAttribute("aria-pressed", String(state.preset === p.id));
+      b.innerHTML = "<b>" + p.name + "</b><small>" + p.desc + "</small>";
+      b.addEventListener("click", () => {
+        state.preset = p.id;
+        if (p.id !== "custom") state.grams = scale(p.ratio, state.size);
+        save(); render();
+      });
+      el.appendChild(b);
+    });
+  }
+
+  function renderGrains(total) {
+    const el = $("grains");
+    el.innerHTML = "";
+    const full = total >= state.size;
+    GRAINS.forEach((g) => {
+      const gr = state.grams[g.id] || 0;
+      const li = document.createElement("li");
+      li.className = "grain" + (gr ? " on" : "");
+      li.innerHTML =
+        '<div class="gname"><span class="dot" style="background:' + g.color + '"></span>' +
+        '<span><b>' + g.name + '</b><span class="hi">' + g.hi + '</span></span>' +
+        '<small>' + g.tip + ' · <span class="num">' + inr(g.price) + '/kg</span></small>' +
+        (gr ? '<span class="share num">' + Math.round(gr / state.size * 100) + '%</span>' : '') +
+        '</div>' +
+        '<div class="stepper"><button type="button" class="minus" aria-label="Less ' + g.name + '">−</button>' +
+        '<output class="num" aria-live="polite">' + kg(gr) + '</output>' +
+        '<button type="button" class="plus" aria-label="More ' + g.name + '">+</button></div>';
+      const minus = li.querySelector(".minus"), plus = li.querySelector(".plus");
+      minus.disabled = gr === 0;
+      plus.disabled = full;
+      minus.addEventListener("click", () => change(g.id, -S.step));
+      plus.addEventListener("click", () => change(g.id, S.step));
+      el.appendChild(li);
+    });
+  }
+
+  function change(id, d) {
+    const next = Math.max(0, (state.grams[id] || 0) + d);
+    if (next) state.grams[id] = next; else delete state.grams[id];
+    state.preset = "custom";
+    save(); render();
+  }
+
+  function renderNutrition() {
+    const n = nutrition();
+    const body = $("nutriBody");
+    const f = state.per === "roti" ? S.rotiGrams / 100 : 1;
+    $("per100").setAttribute("aria-pressed", String(state.per === "100"));
+    $("perRoti").setAttribute("aria-pressed", String(state.per === "roti"));
+    if (!n) {
+      $("nutriSum").textContent = "Nutrition: add grains to see it";
+      body.innerHTML = "";
+      return;
+    }
+    $("nutriSum").innerHTML = "Nutrition per 100 g · <b class=\"num\">" + Math.round(n.kcal) + "</b> kcal · " + fix(n.prot, 1) + " g protein · " + fix(n.fib, 1) + " g fibre";
+    const w = GRAINS[0].n;
+    let html = '<div class="nrows num">' + NUTR.map((m) => {
+      const v = n[m.k] * f, diff = v - w[m.k] * f;
+      const minDiff = m.d ? 0.05 : 0.5;
+      const cmp = Math.abs(diff) >= minDiff ? (diff > 0 ? "+" : "−") + fix(Math.abs(diff), m.d) : "–";
+      const up = diff >= minDiff && m.k !== "carb" && m.k !== "fat";
+      return '<div class="nrow"><span class="lbl">' + m.label + '</span>' +
+        '<span class="val">' + fix(v, m.d) + ' ' + m.unit + '</span><span class="cmp' + (up ? " up" : "") + '">' + cmp + '</span></div>';
+    }).join("") + '</div>';
+    html = '<div class="nrow nhead"><span>' + (state.per === "roti" ? "Per roti (" + S.rotiGrams + " g) · " + Math.round(n.kcal * f) + " kcal" : "Per 100 g · " + Math.round(n.kcal) + " kcal") + '</span><span></span><span class="cmp">vs wheat</span></div>' + html;
+    body.innerHTML = html;
+  }
+
+  function message(pr, ok) {
+    if (!ok) return "Fill your " + kg(state.size) + " bag to create your order message.";
+    const pay = PAYS.find((x) => x.id === state.pay);
+    const lines = ["Hi! I'd like to order a custom atta blend from " + BRAND + ":", ""];
+    GRAINS.forEach((g) => { if (state.grams[g.id]) lines.push("• " + g.name + " – " + kg(state.grams[g.id])); });
+    const grind = GRINDS.find((x) => x.id === state.grind).name;
+    const slot = SLOTS.find((x) => x.id === state.slot);
+    lines.push("", "Total: " + kg(pr.total) + " · Grind: " + grind,
+      "Packs: " + packText(pr.total),
+      "Delivery: " + slot.name + " (" + slot.t + ")",
+      "Estimated price: " + inr(pr.sum) + " (" + inr(pr.perKg) + "/kg)",
+      "Payment: " + pay.name + " (" + pay.t.toLowerCase() + ")",
+      "", "Name: " + details.name.trim(),
+      "Address: Tower " + details.tower.trim() + ", Flat " + details.flat.trim() + ", " + details.society,
+      details.landmark.trim() ? "Note: " + details.landmark.trim() : "");
+    while (lines[lines.length - 1] === "") lines.pop();
+    return lines.join("\n");
+  }
+
+  function render() {
+    const pr = price();
+    const left = state.size - pr.total;
+    const ok = left === 0;
+
+    renderSizes();
+    renderPresets();
+    renderGrains(pr.total);
+    pressGroup($("grind"), GRINDS, "grind", (it) => it.name + '<small class="hi">' + it.hi + "</small>");
+    pressGroup($("slot"), SLOTS, "slot", (it) => it.name + "<small>" + it.t + "</small>");
+    renderNutrition();
+
+    const comp = $("comp");
+    comp.style.setProperty("--ticks", state.size / 1000);
+    comp.innerHTML = "";
+    GRAINS.forEach((g) => {
+      const gr = state.grams[g.id];
+      if (!gr) return;
+      const i = document.createElement("i");
+      i.style.background = g.color;
+      i.style.width = Math.min(100, gr / state.size * 100) + "%";
+      comp.appendChild(i);
+    });
+
+    $("fillKg").innerHTML = kgNum(pr.total) + " <span>of " + kg(state.size) + "</span>";
+    const fs = $("fillState");
+    fs.className = "fill-state" + (ok ? " done" : "");
+    if (ok) fs.innerHTML = "Bag full" + CHECK; else fs.textContent = pr.total === 0 ? "Tap + to add grains" : kg(left) + " left to fill";
+    $("fillWheat").disabled = left <= 0;
+    $("clearAll").disabled = pr.total === 0;
+
+
+    $("breakdown").innerHTML =
+      "<div><span>Grains</span><span>" + inr(pr.grain) + "</span></div>" +
+      "<div><span>Grinding</span><span>" + inr(pr.grind) + "</span></div>" +
+      "<div><span>Delivery</span><span>" + (S.delivery ? inr(S.delivery) : "Free") + "</span></div>" +
+      '<div class="tot"><span>Total (estimate)</span><span>' + inr(pr.sum) + "</span></div>" +
+      "<div><span>Bags</span><span>" + (pr.total ? packText(pr.total) : "—") + "</span></div>";
+
+    $("barPrice").textContent = inr(pr.sum);
+    $("barPerKg").textContent = ok ? kg(pr.total) + " · " + inr(pr.perKg) + "/kg" : pr.total ? kgNum(pr.total) + " of " + kg(state.size) + " · " + kg(left) + " left" : "Pick grains to fill your bag";
+    $("barProg").style.width = Math.min(100, pr.total / state.size * 100) + "%";
+    $("barCta").disabled = !ok;
+    $("barCta").textContent = ok ? "Add your details" : "Fill your bag";
+    pressGroup($("pay"), PAYS, "pay", (it) => it.name + "<small>" + it.t + "</small>");
+    updateSend(pr, ok);
+    renderTracker();
+  }
+
+  function renderTracker() {
+    const full = totalOf() === state.size;
+    const steps = [
+      { label: "Size", to: "stepSize", done: true },
+      { label: "Grains", to: "stepGrains", done: full },
+      { label: "Grind", to: "stepGrind", done: full },
+      { label: "Details", to: "msgBox", done: full && missing().length === 0 }
+    ];
+    const now = steps.findIndex((x) => !x.done);
+    $("tracker").innerHTML = steps.map((x, i) =>
+      '<li><button type="button" data-to="' + x.to + '" class="' + (x.done ? "done" : i === now ? "now" : "") + '"' + (i === now ? ' aria-current="step"' : "") + '>' +
+      '<span class="c">' + (x.done ? CHECK : i + 1) + '</span>' + x.label + '</button></li>').join("");
+  }
+
+  function updateSend(pr, ok) {
+    pr = pr || price();
+    ok = ok === undefined ? pr.total === state.size : ok;
+    const text = message(pr, ok);
+    $("msg").textContent = text;
+    $("copyBtn").disabled = !ok || missing().length > 0;
+    const ready = ok && missing().length === 0;
+    const wa = $("waBtn");
+    wa.href = "https://wa.me/" + WHATSAPP_NUMBER + "?text=" + encodeURIComponent(text);
+    wa.setAttribute("aria-disabled", String(!ready));
+    $("waNote").textContent = !ok ? "Fill your " + kg(state.size) + " bag first."
+      : "";
+  }
+
+  function setupForm() {
+    const soc = $("fSociety");
+    soc.innerHTML = SOCIETIES.map((x) => "<option>" + x + "</option>").join("");
+    Object.keys(FIELDS).forEach((k) => {
+      const el = $(FIELDS[k]);
+      el.value = details[k];
+      el.addEventListener("input", () => {
+        details[k] = el.value; saveDetails();
+        if (el.value.trim()) showFieldError(k, false);
+        updateSend(); renderTracker();
+      });
+      el.addEventListener("blur", () => { if (ERR[k]) showFieldError(k, !el.value.trim()); });
+    });
+    $("msgBox").addEventListener("submit", (e) => e.preventDefault());
+    $("waBtn").addEventListener("click", (e) => {
+      if (totalOf() !== state.size) {
+        e.preventDefault();
+        $("formErr").textContent = "Your bag isn't full yet. Add " + kg(state.size - totalOf()) + " more grain in step 2.";
+        return;
+      }
+      const m = missing();
+      $("formErr").textContent = "";
+      if (m.length) {
+        e.preventDefault();
+        m.forEach((k) => showFieldError(k, true));
+        $(FIELDS[m[0]]).focus();
+        return;
+      }
+      $("waNote").textContent = "Didn't open? Tap “See message” and copy it.";
+    });
+  }
+
+  $("fillWheat").addEventListener("click", () => {
+    const left = state.size - totalOf();
+    if (left > 0) { state.grams.wheat = (state.grams.wheat || 0) + left; state.preset = "custom"; save(); render(); }
+  });
+  $("clearAll").addEventListener("click", () => {
+    lastCleared = { grams: Object.assign({}, state.grams), preset: state.preset };
+    state.grams = {}; state.preset = "custom"; save(); render();
+    $("undoRow").hidden = false;
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(() => { $("undoRow").hidden = true; }, 8000);
+  });
+  $("undoBtn").addEventListener("click", () => {
+    if (lastCleared) { state.grams = lastCleared.grams; state.preset = lastCleared.preset; save(); render(); }
+    $("undoRow").hidden = true;
+  });
+  $("tracker").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-to]");
+    if (b) $(b.dataset.to).scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  });
+  $("per100").addEventListener("click", () => { state.per = "100"; save(); renderNutrition(); });
+  $("perRoti").addEventListener("click", () => { state.per = "roti"; save(); renderNutrition(); });
+  $("barCta").addEventListener("click", () => {
+    $("msgBox").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+    const m = missing();
+    if (m.length) setTimeout(() => $(FIELDS[m[0]]).focus({ preventScroll: true }), 400);
+  });
+  $("copyBtn").addEventListener("click", () => {
+    const text = $("msg").textContent;
+    const fallback = () => {
+      const r = document.createRange(); r.selectNodeContents($("msg"));
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      $("toast").textContent = "Selected. Press copy on your phone.";
+    };
+    try {
+      navigator.clipboard.writeText(text).then(() => { $("toast").textContent = "Copied. Paste it in WhatsApp."; }, fallback);
+    } catch (e) { fallback(); }
+  });
+
+  $("brandName").textContent = BRAND;
+  if (totalOf() > state.size) state.grams = scale(currentRatio(), state.size);
+  setupForm();
+  render();
+})();
+</script>
