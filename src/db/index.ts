@@ -16,6 +16,9 @@ async function connect(): Promise<{ db: DB; kind: "postgres" | "pglite"; close: 
     const client = postgres(url, { prepare: false, max: 5 });
     return { db: drizzle(client, { schema }), kind: "postgres", close: () => client.end() };
   }
+  if (process.env.VERCEL) {
+    throw new Error("DATABASE_URL is not set for this Vercel environment. Add it in Project → Settings → Environment Variables, then redeploy.");
+  }
   const { PGlite } = await import("@electric-sql/pglite");
   const { drizzle } = await import("drizzle-orm/pglite");
   mkdirSync(".data", { recursive: true });
