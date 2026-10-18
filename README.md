@@ -42,7 +42,7 @@ The local database is PGlite, a real Postgres that runs inside Node. No Docker n
 You need two things: a Postgres database and a place to run a Node server, both in or near Mumbai.
 
 1. **Database:** create a Supabase project in the Mumbai region. Copy the connection pooler URL (transaction mode) into `DATABASE_URL`.
-2. **Server:** any host that runs Node 20+ (Railway, Render, Fly.io, or a small VPS). Pick a Mumbai or Singapore region and a plan that doesn't sleep; free plans that sleep make the first visit slow.
+2. **Server:** any host that runs Node 24 (Railway, Render, Fly.io, or a small VPS). Pick a Mumbai or Singapore region and a plan that doesn't sleep; free plans that sleep make the first visit slow.
    - Build command: `npm install && npm run build`
    - Start command: `npm run db:migrate && npm run db:seed && npm start`
    - Env vars: `DATABASE_URL`, `SESSION_SECRET` (long random string), `ADMIN_PASSWORD`, `COOKIE_SECURE=1`, `NODE_ENV=production`

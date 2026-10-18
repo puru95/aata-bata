@@ -25,7 +25,7 @@ async function buildServer(entry, outfile, extra = {}) {
     bundle: true,
     platform: "node",
     format: "esm",
-    target: "node20",
+    target: "node22",
     jsx: "automatic",
     jsxImportSource: "hono/jsx",
     sourcemap: true,
@@ -54,7 +54,7 @@ if (args.has("--watch")) {
   mkdirSync(fn, { recursive: true });
   // Everything is bundled into one file; the local-only PGlite driver is left out.
   await buildServer("src/vercel.ts", `${fn}/index.mjs`, { external: ["@electric-sql/pglite", "drizzle-orm/pglite", "drizzle-orm/pglite/*"] });
-  writeFileSync(`${fn}/.vc-config.json`, JSON.stringify({ runtime: "nodejs20.x", handler: "index.mjs", launcherType: "Nodejs", shouldAddHelpers: false, regions: ["bom1"], maxDuration: 15 }, null, 2));
+  writeFileSync(`${fn}/.vc-config.json`, JSON.stringify({ runtime: "nodejs24.x", handler: "index.mjs", launcherType: "Nodejs", shouldAddHelpers: false, regions: ["bom1"], maxDuration: 15 }, null, 2));
   writeFileSync(`${fn}/package.json`, JSON.stringify({ type: "module" }));
   writeFileSync(`${out}/config.json`, JSON.stringify({ version: 3, routes: [{ src: "/(.*)", dest: "/index" }] }, null, 2));
   console.log("built " + out);
