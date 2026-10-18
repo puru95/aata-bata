@@ -15,7 +15,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:setup": "npm run db:migrate && npm run db:seed",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "build:vercel": "node scripts/build.mjs --vercel"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.10",

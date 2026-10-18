@@ -1,23 +1,20 @@
 import { readFileSync } from "node:fs";
 
 // The CSS and builder JS are small enough to inline, so a page is one request.
-const dev = process.env.NODE_ENV !== "production";
-const cache = new Map<string, string>();
+// Production bundles get them baked in at build time (see scripts/build.mjs); dev reads dist/client on each request.
+declare const __INLINE_CSS__: string | undefined;
+declare const __INLINE_JS__: string | undefined;
 
-function read(file: string) {
-  if (!dev && cache.has(file)) return cache.get(file)!;
-  let text = "";
+const baked = { "styles.css": typeof __INLINE_CSS__ === "string" ? __INLINE_CSS__ : undefined, "builder.js": typeof __INLINE_JS__ === "string" ? __INLINE_JS__ : undefined };
+
+function read(file: keyof typeof baked) {
+  const b = baked[file];
+  if (b !== undefined) return b;
   try {
-    text = readFileSync(new URL(`../../dist/client/${file}`, import.meta.url), "utf8");
+    return readFileSync(`dist/client/${file}`, "utf8");
   } catch {
-    try {
-      text = readFileSync(`dist/client/${file}`, "utf8");
-    } catch {
-      throw new Error(`Missing dist/client/${file}. Run \`node scripts/build.mjs\` first.`);
-    }
+    throw new Error(`Missing dist/client/${file}. Run \`node scripts/build.mjs\` first.`);
   }
-  cache.set(file, text);
-  return text;
 }
 
 export const css = () => read("styles.css");
