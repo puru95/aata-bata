@@ -3,22 +3,29 @@ import { HTTPException } from "hono/http-exception";
 import { compress } from "hono/compress";
 import { csrf } from "hono/csrf";
 import { secureHeaders } from "hono/secure-headers";
-import { and, asc, desc, eq, notInArray } from "drizzle-orm";
+import { and, asc, count, desc, eq, notInArray } from "drizzle-orm";
 import { db, schema } from "./db";
 import { availableSlots, loadCatalog } from "./lib/catalog";
-import { createOrder, OrderError, transitionOrder } from "./lib/orders";
+import { clearProblem, createOrder, OrderError, transitionOrder } from "./lib/orders";
 import { checkAdminPassword, endOpsSession, ensureDeviceSession, getDeviceSession, isOps, startOpsSession } from "./lib/session";
 import { STATUSES, type Status } from "./domain/order-status";
 import { HomePage } from "./views/home";
 import { MessagePage, MyOrdersPage, OrderPage } from "./views/customer";
 import { LoginPage, OrderDetailPage, OrdersPage, PricesPage } from "./views/ops/pages";
+import { api } from "./api/v1";
+import { shop } from "./routes/shop";
+import { ShopPage, ShopsPage, type NewLink, type ShopForm } from "./views/ops/shops";
+import { issueSetupLink, revokeAllSessions } from "./lib/shop-auth";
+import { normalizeIndianMobile } from "./lib/format";
 import { backgroundWebp } from "./lib/assets";
 
 export const app = new Hono();
 
 app.use(compress());
 app.use(secureHeaders({ crossOriginEmbedderPolicy: false, contentSecurityPolicy: undefined }));
-app.use(csrf()); // rejects cross-site form and JSON posts
+// Rejects cross-site form posts to cookie-based pages. The app API uses bearer tokens, so it's exempt.
+const csrfCheck = csrf();
+app.use("*", (c, next) => (c.req.path.startsWith("/api/v1/") ? next() : csrfCheck(c, next)));
 
 const noStore = (c: Context) => c.header("Cache-Control", "private, no-store");
 const origin = (c: Context) => new URL(c.req.url).origin;
@@ -27,7 +34,9 @@ const scriptJson = (v: unknown) => JSON.stringify(v).replace(/</g, "\\u003c");
 
 // Very small in-memory rate limit for order creation (per IP). Enough for one server in a pilot.
 const hits = new Map<string, number[]>();
-function rateLimited(ip: string, max = 8, windowMs = 3600_000) {
+const ORDER_LIMIT = Number(process.env.ORDER_RATE_LIMIT) || 8; // per IP per hour; raised in e2e tests
+const LOGIN_LIMIT = Number(process.env.LOGIN_RATE_LIMIT) || 10; // admin logins per IP per 15 min; raised in e2e tests
+function rateLimited(ip: string, max = ORDER_LIMIT, windowMs = 3600_000) {
   const now = Date.now();
   const list = (hits.get(ip) ?? []).filter((t) => now - t < windowMs);
   list.push(now);
@@ -35,6 +44,11 @@ function rateLimited(ip: string, max = 8, windowMs = 3600_000) {
   return list.length > max;
 }
 const clientIp = (c: Context) => c.req.header("x-forwarded-for")?.split(",")[0]?.trim() || c.req.header("x-real-ip") || "local";
+
+// Customer app API ---------------------------------------------------------------
+
+app.route("/api/v1", api);
+app.route("/shop", shop);
 
 // Customer ---------------------------------------------------------------------
 
@@ -60,7 +74,7 @@ app.post("/api/orders", async (c) => {
   const body = await c.req.json().catch(() => null);
   try {
     const session = await ensureDeviceSession(c);
-    const order = await createOrder(body, session.id);
+    const order = await createOrder(body, { source: "web", sessionId: session.id });
     return c.json({ url: `/o/${order.publicToken}?new=1` });
   } catch (e) {
     if (e instanceof OrderError) return c.json({ error: e.message, field: e.field, code: e.code }, 400);
@@ -117,7 +131,7 @@ const ops = new Hono();
 ops.get("/login", (c) => c.html(LoginPage({})));
 ops.post("/login", async (c) => {
   const form = await c.req.parseBody();
-  if (rateLimited("login:" + clientIp(c), 10, 900_000)) return c.html(LoginPage({ error: "Too many tries. Wait 15 minutes." }), 429);
+  if (rateLimited("login:" + clientIp(c), LOGIN_LIMIT, 900_000)) return c.html(LoginPage({ error: "Too many tries. Wait 15 minutes." }), 429);
   if (!checkAdminPassword(String(form.password ?? ""))) return c.html(LoginPage({ error: "Wrong password." }), 401);
   await startOpsSession(c);
   return c.redirect("/ops");
@@ -166,7 +180,8 @@ async function renderOrderDetail(c: Context, id: string, flash?: string) {
     db.select().from(schema.orderItems).where(eq(schema.orderItems.orderId, id)).orderBy(asc(schema.orderItems.id)),
     db.select().from(schema.orderEvents).where(eq(schema.orderEvents.orderId, id)).orderBy(asc(schema.orderEvents.id)),
   ]);
-  return c.html(OrderDetailPage({ order, items, events, flash, publicUrl: `${origin(c)}/o/${order.publicToken}` }));
+  const shops = await db.select().from(schema.shops).where(eq(schema.shops.active, true)).orderBy(asc(schema.shops.name));
+  return c.html(OrderDetailPage({ order, items, events, flash, shops, publicUrl: `${origin(c)}/o/${order.publicToken}` }));
 }
 
 ops.get("/o/:id", (c) => renderOrderDetail(c, c.req.param("id"), c.req.query("ok") ?? undefined));
@@ -177,7 +192,7 @@ ops.post("/o/:id/status", async (c) => {
   const to = String(form.to ?? "") as Status;
   if (!(STATUSES as readonly string[]).includes(to)) return renderOrderDetail(c, id, "Unknown status.");
   try {
-    await transitionOrder(id, to, "admin");
+    await transitionOrder(id, to, { role: "admin" });
   } catch (e) {
     if (e instanceof OrderError) return renderOrderDetail(c, id, e.message);
     throw e;
@@ -185,11 +200,29 @@ ops.post("/o/:id/status", async (c) => {
   return c.redirect(`/ops/o/${id}?ok=Status+updated`);
 });
 
+ops.post("/o/:id/shop", async (c) => {
+  const id = c.req.param("id");
+  const form = await c.req.parseBody();
+  const shopId = String(form.shopId ?? "");
+  if (shopId) {
+    const [shop] = await db.select({ id: schema.shops.id }).from(schema.shops).where(eq(schema.shops.id, shopId)).limit(1);
+    if (!shop) return renderOrderDetail(c, id, "Unknown shop.");
+  }
+  await db.update(schema.orders).set({ shopId: shopId || null, updatedAt: new Date() }).where(eq(schema.orders.id, id));
+  return c.redirect(`/ops/o/${id}?ok=Shop+saved`);
+});
+
 ops.post("/o/:id/paid", async (c) => {
   const id = c.req.param("id");
   await db.update(schema.orders).set({ paymentStatus: "paid", updatedAt: new Date() }).where(eq(schema.orders.id, id));
   await db.insert(schema.orderEvents).values({ orderId: id, toStatus: "PAID", actor: "admin", note: "Marked paid" });
   return c.redirect(`/ops/o/${id}?ok=Marked+paid`);
+});
+
+ops.post("/o/:id/problem-solved", async (c) => {
+  const id = c.req.param("id");
+  await clearProblem(id);
+  return c.redirect(`/ops/o/${id}?ok=Problem+marked+solved`);
 });
 
 ops.post("/o/:id/note", async (c) => {
@@ -258,6 +291,119 @@ ops.post("/prices", async (c) => {
       .where(eq(schema.settings.id, 1));
   });
   return c.redirect("/ops/prices?ok=Saved");
+});
+
+// Shops --------------------------------------------------------------------------
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+ops.use("/shops/:id/*", async (c, next) => (UUID.test(c.req.param("id")) ? next() : c.redirect("/ops/shops")));
+ops.use("/shops/:id", async (c, next) => (UUID.test(c.req.param("id")) ? next() : c.redirect("/ops/shops")));
+
+async function renderShops(c: Context, opts: { form?: ShopForm; error?: string; flash?: string } = {}) {
+  const [shops, staff] = await Promise.all([
+    db.select().from(schema.shops).orderBy(desc(schema.shops.active), asc(schema.shops.name)),
+    db.select({ shopId: schema.shopUsers.shopId, n: count() }).from(schema.shopUsers).where(eq(schema.shopUsers.active, true)).groupBy(schema.shopUsers.shopId),
+  ]);
+  const rows = shops.map((s) => ({ ...s, staff: staff.find((x) => x.shopId === s.id)?.n ?? 0 }));
+  return c.html(ShopsPage({ shops: rows, ...opts }), opts.error ? 400 : 200);
+}
+
+async function renderShop(c: Context, id: string, opts: { form?: ShopForm; error?: string; flash?: string; link?: NewLink } = {}) {
+  const [s] = await db.select().from(schema.shops).where(eq(schema.shops.id, id)).limit(1);
+  if (!s) return c.html(MessagePage({ title: "Not found", text: "No such shop." }), 404);
+  const staff = await db.select().from(schema.shopUsers).where(eq(schema.shopUsers.shopId, id)).orderBy(desc(schema.shopUsers.active), asc(schema.shopUsers.createdAt));
+  return c.html(ShopPage({ shop: s, staff, ...opts }), opts.error ? 400 : 200);
+}
+
+/** Validated shop fields, or an error message. */
+function readShopForm(form: Record<string, unknown>): { form: ShopForm; values?: { name: string; ownerName: string; phone: string; address: string; grindRatePaisePerKg: number }; error?: string } {
+  const f: ShopForm = {
+    name: String(form.name ?? "").trim().slice(0, 80),
+    ownerName: String(form.ownerName ?? "").trim().slice(0, 80),
+    phone: String(form.phone ?? "").trim(),
+    address: String(form.address ?? "").trim().slice(0, 200),
+    rate: String(form.rate ?? "").trim(),
+  };
+  if (!f.name) return { form: f, error: "Enter the shop name." };
+  const phone = normalizeIndianMobile(f.phone);
+  if (!phone) return { form: f, error: "Enter a 10-digit mobile number for the shop." };
+  const rate = toPaise(f.rate);
+  if (rate === null || rate > 10000) return { form: f, error: "Enter what you pay per kg, like 3 or 3.50." };
+  return { form: f, values: { name: f.name, ownerName: f.ownerName, phone, address: f.address, grindRatePaisePerKg: rate } };
+}
+
+/** Make a setup link and the page that shows it once. */
+async function showNewLink(c: Context, shopId: string, user: { id: string; name: string }, flash: string) {
+  const [s] = await db.select().from(schema.shops).where(eq(schema.shops.id, shopId)).limit(1);
+  const t = await issueSetupLink(user.id);
+  const url = `${origin(c)}/shop/setup/${t}`;
+  const text = `Namaste ${user.name}! Your ${s?.name ?? "chakki"} order panel login: ${url}
+Open it on your phone and pick a 4-digit PIN. The link works once, for 48 hours.`;
+  const waHref = `https://wa.me/${(s?.phone ?? "").replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
+  return renderShop(c, shopId, { flash, link: { name: user.name, url, waHref } });
+}
+
+ops.get("/shops", (c) => renderShops(c, { flash: c.req.query("ok") ?? undefined }));
+
+ops.post("/shops", async (c) => {
+  const r = readShopForm(await c.req.parseBody());
+  if (!r.values) return renderShops(c, { form: r.form, error: r.error });
+  const [s] = await db.insert(schema.shops).values(r.values).returning({ id: schema.shops.id });
+  return c.redirect(`/ops/shops/${s!.id}?ok=Shop+added.+Now+add+the+people+who+will+use+the+shop+panel.`);
+});
+
+ops.get("/shops/:id", (c) => renderShop(c, c.req.param("id"), { flash: c.req.query("ok") ?? undefined }));
+
+ops.post("/shops/:id", async (c) => {
+  const id = c.req.param("id");
+  const body = await c.req.parseBody();
+  const r = readShopForm(body);
+  if (!r.values) return renderShop(c, id, { form: r.form, error: r.error });
+  const active = body.active === "on";
+  await db.transaction(async (tx) => {
+    await tx.update(schema.shops).set({ ...r.values!, active }).where(eq(schema.shops.id, id));
+    if (!active) {
+      const users = await tx.select({ id: schema.shopUsers.id }).from(schema.shopUsers).where(eq(schema.shopUsers.shopId, id));
+      for (const u of users) await revokeAllSessions(u.id, tx);
+    }
+  });
+  return c.redirect(`/ops/shops/${id}?ok=Saved`);
+});
+
+ops.post("/shops/:id/staff", async (c) => {
+  const id = c.req.param("id");
+  const name = String((await c.req.parseBody()).name ?? "").trim().slice(0, 60);
+  if (!name) return renderShop(c, id, { error: "Enter the person's name." });
+  const [s] = await db.select({ active: schema.shops.active }).from(schema.shops).where(eq(schema.shops.id, id)).limit(1);
+  if (!s) return renderShop(c, id);
+  if (!s.active) return renderShop(c, id, { error: "Turn the shop on before adding people." });
+  const [u] = await db.insert(schema.shopUsers).values({ shopId: id, name }).returning();
+  return showNewLink(c, id, u!, `${name} added.`);
+});
+
+async function staffMember(shopId: string, userId: string) {
+  if (!UUID.test(userId)) return null;
+  const [u] = await db.select().from(schema.shopUsers).where(and(eq(schema.shopUsers.id, userId), eq(schema.shopUsers.shopId, shopId))).limit(1);
+  return u ?? null;
+}
+
+ops.post("/shops/:id/staff/:uid/link", async (c) => {
+  const id = c.req.param("id");
+  const u = await staffMember(id, c.req.param("uid"));
+  if (!u || !u.active) return renderShop(c, id, { error: "That person is turned off. Turn them on first." });
+  return showNewLink(c, id, u, `New link for ${u.name}. Their old PIN no longer works.`);
+});
+
+ops.post("/shops/:id/staff/:uid/active", async (c) => {
+  const id = c.req.param("id");
+  const u = await staffMember(id, c.req.param("uid"));
+  if (!u) return renderShop(c, id, { error: "No such person." });
+  const active = (await c.req.parseBody()).active === "1";
+  await db.transaction(async (tx) => {
+    await tx.update(schema.shopUsers).set({ active }).where(eq(schema.shopUsers.id, u.id));
+    if (!active) await revokeAllSessions(u.id, tx);
+  });
+  return c.redirect(`/ops/shops/${id}?ok=${encodeURIComponent(active ? `${u.name} turned on` : `${u.name} turned off and signed out`)}`);
 });
 
 app.route("/ops", ops);

@@ -39,6 +39,11 @@ await db.transaction(async (tx) => {
       { label: "Morning", startTime: "07:00", endTime: "09:00", capacity: 15 },
       { label: "Evening", startTime: "18:00", endTime: "20:00", capacity: 15 },
     ]);
+  // Demo shop for local testing only; real shops are added by admin.
+  if (process.env.SEED_DEMO_SHOP === "1") {
+    const shop = await tx.select().from(schema.shops).limit(1);
+    if (!shop.length) await tx.insert(schema.shops).values({ name: "Demo Chakki", ownerName: "Test Owner", phone: "+919000000099", grindRatePaisePerKg: 300 });
+  }
 });
 
 console.log(`Seeded (${conn.kind}). Prices are placeholders — update them at /ops/prices.`);

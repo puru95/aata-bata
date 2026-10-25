@@ -9,11 +9,12 @@ type Item = typeof schema.orderItems.$inferSelect;
 type Event = typeof schema.orderEvents.$inferSelect;
 type Grain = typeof schema.grains.$inferSelect;
 type Settings = typeof schema.settings.$inferSelect;
+type Shop = typeof schema.shops.$inferSelect;
 
 const GRIND: Record<string, string> = { fine: "Fine", medium: "Medium", coarse: "Coarse" };
 const rupees = (p: number) => (p / 100).toFixed(2).replace(/\.00$/, "");
 
-function OpsShell(props: { title: string; children: unknown; flash?: string }) {
+export function OpsShell(props: { title: string; children: unknown; flash?: string }) {
   return (
     <Layout title={props.title} bodyClass="ops" noindex>
       <div class="wrap">
@@ -21,6 +22,7 @@ function OpsShell(props: { title: string; children: unknown; flash?: string }) {
           <Brand href="/ops" />
           <nav class="chips">
             <a class="toplink" href="/ops">Orders</a>
+            <a class="toplink" href="/ops/shops">Shops</a>
             <a class="toplink" href="/ops/prices">Prices</a>
             <form method="post" action="/ops/logout" style="margin:0"><button class="chip" type="submit">Log out</button></form>
           </nav>
@@ -83,7 +85,7 @@ export function OrdersPage(props: { orders: Order[]; status: string; date: strin
                 <td class="r">{o.sizeGrams / 1000}</td>
                 <td class="r">{formatINR(o.totalPaise)}</td>
                 <td>{o.paymentMethod.toUpperCase()} · {o.paymentStatus}</td>
-                <td><span class={`badge ${o.status}`}>{STATUS_LABEL[o.status as Status]}</span></td>
+                <td><span class={`badge ${o.status}`}>{STATUS_LABEL[o.status as Status]}</span>{o.problem ? <span class="badge CANCELLED" style="margin-left:6px">Problem</span> : null}</td>
               </tr>
             )) : <tr><td colspan={8} class="muted">No orders match.</td></tr>}
           </tbody>
@@ -93,19 +95,45 @@ export function OrdersPage(props: { orders: Order[]; status: string; date: strin
   );
 }
 
-export function OrderDetailPage(props: { order: Order; items: Item[]; events: Event[]; flash?: string; publicUrl: string }) {
+export function OrderDetailPage(props: { order: Order; items: Item[]; events: Event[]; flash?: string; publicUrl: string; shops: Shop[] }) {
   const { order: o, items } = props;
   const num = orderNumber(o.seq);
   const status = o.status as Status;
   const phoneDigits = o.customerPhone.replace(/\D/g, "");
   const blendLines = items.map((i) => `• ${i.grainName}: ${formatKg(i.grams)}`).join("\n");
   const confirmText = `Hi ${o.customerName}, this is ${BRAND.name}. Confirming order ${num}:\n${blendLines}\nTotal ${formatKg(o.sizeGrams)}, ${GRIND[o.grind]} grind\nDelivery: ${formatDate(o.deliveryDate)}, ${o.slotLabel}\nAmount: ${formatINR(o.totalPaise)} (${o.paymentMethod === "upi" ? "UPI" : "cash on delivery"})\nTrack: ${props.publicUrl}`;
+  const shop = props.shops.find((s) => s.id === o.shopId);
   const ticket = `ORDER ${num}\n${blendLines}\nTOTAL ${formatKg(o.sizeGrams)} · ${GRIND[o.grind]?.toUpperCase()} GRIND\nBags: ${o.bags.map((b) => `${b.qty} × ${formatKg(b.grams)}`).join(" + ")}\nPickup for: ${formatDate(o.deliveryDate)}, ${o.slotLabel}${o.note ? `\nNote: ${o.note}` : ""}`;
 
   return (
     <OpsShell title={num} flash={props.flash}>
       <p><a href="/ops">← Orders</a></p>
       <h1 style="font-size:24px">{num} <span class={`badge ${o.status}`}>{STATUS_LABEL[status]}</span></h1>
+
+      {o.problem ? (
+        <section class="card" role="alert">
+          <p class="err">Shop reported a problem: {o.problem}</p>
+          <form method="post" action={`/ops/o/${o.id}/problem-solved`}><button class="chip" type="submit">Mark solved</button></form>
+        </section>
+      ) : null}
+
+      <section class="card">
+        <h2 style="font-size:17px">Shop</h2>
+        {props.shops.length ? (
+          <form method="post" action={`/ops/o/${o.id}/shop`} class="filters">
+            <label class="f" for="shop"><span>Grinds this order</span>
+              <select id="shop" name="shopId" class="in">
+                <option value="">Not assigned</option>
+                {props.shops.map((s) => <option value={s.id} selected={o.shopId === s.id}>{s.name}</option>)}
+              </select>
+            </label>
+            <button class="chip" type="submit">Assign</button>
+          </form>
+        ) : (
+          <p class="muted">No shops yet. <a href="/ops/shops">Add your partner chakki</a> before sending orders to it.</p>
+        )}
+        {o.outputGrams ? <p class="muted">Packed weight from shop: {formatKg(o.outputGrams)}</p> : null}
+      </section>
 
       <section class="card">
         <h2 style="font-size:17px">Change status</h2>
@@ -127,7 +155,7 @@ export function OrderDetailPage(props: { order: Order; items: Item[]; events: Ev
       <section class="card">
         <div class="acts">
           <a class="btn wa" style="width:auto" href={`https://wa.me/${phoneDigits}?text=${encodeURIComponent(confirmText)}`} target="_blank" rel="noopener"><WhatsAppIcon /> Confirm with customer</a>
-          <a class="btn ghost" style="width:auto" href={`https://wa.me/?text=${encodeURIComponent(ticket)}`} target="_blank" rel="noopener">Send ticket to chakki</a>
+          <a class="btn ghost" style="width:auto" href={`https://wa.me/${shop ? shop.phone.replace(/\D/g, "") : ""}?text=${encodeURIComponent(ticket)}`} target="_blank" rel="noopener">{shop ? `Send ticket to ${shop.name}` : "Send ticket to chakki"}</a>
         </div>
       </section>
 

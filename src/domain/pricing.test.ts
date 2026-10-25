@@ -97,8 +97,18 @@ describe("blendNutrition", () => {
 
 describe("order status", () => {
   it("moves forward one step, back one step, or cancels", () => {
-    expect(allowedNext("CONFIRMED")).toEqual(["SENT_TO_PARTNER", "PLACED", "CANCELLED"]);
+    expect(allowedNext("CONFIRMED")).toEqual(["SENT_TO_SHOP", "PLACED", "CANCELLED"]);
     expect(canTransition("PLACED", "DELIVERED")).toBe(false);
     expect(allowedNext("DELIVERED")).toEqual([]);
+  });
+  it("lets the shop only accept, grind and finish", () => {
+    expect(allowedNext("SENT_TO_SHOP", "shop")).toEqual(["ACCEPTED"]);
+    expect(allowedNext("GRINDING", "shop")).toEqual(["READY"]);
+    expect(allowedNext("READY", "shop")).toEqual([]);
+    expect(canTransition("CONFIRMED", "CANCELLED", "shop")).toBe(false);
+  });
+  it("lets the customer cancel only before confirmation", () => {
+    expect(allowedNext("PLACED", "customer")).toEqual(["CANCELLED"]);
+    expect(allowedNext("CONFIRMED", "customer")).toEqual([]);
   });
 });

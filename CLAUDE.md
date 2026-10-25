@@ -19,6 +19,8 @@ Hono + server-rendered `hono/jsx` · Drizzle ORM · Postgres (Supabase) in produ
 - Server always recomputes price; order rows snapshot prices and costs.
 - Order status changes only via `transitionOrder()` in `src/lib/orders.ts`.
 - Times stored UTC; slot dates and cutoffs computed in IST explicitly.
+- Shop panel (`/shop`, `src/routes/shop.ts`) shows order number, blend, bags and pickup slot only — never customer name, phone or flat.
+- Shop staff sign in via a one-time setup link from admin, then a 4-digit PIN (`src/lib/shop-auth.ts`). Turning a person or shop off revokes their sessions.
 - Device session sees only its own orders. Never look up history by phone number for a customer.
 - No health claims in copy. Nutrition is IFCT 2017 data, shown as information.
 - Order sizes 5–25 kg in 5 kg steps; grains in 0.5 kg steps.
@@ -27,4 +29,4 @@ Hono + server-rendered `hono/jsx` · Drizzle ORM · Postgres (Supabase) in produ
 `npm run typecheck && npm test && npm run build`, then load `/` and check the gzipped size.
 
 ## Out of scope for now
-Native app, chakki shop app, online payments, OTP login, subscriptions, coupons.
+Native app (planned: Expo, see `docs/BUILD-PLAN.md`), online payments, subscriptions, coupons.

@@ -1,5 +1,5 @@
 import { Brand, Check, Layout, WhatsAppIcon } from "./layout";
-import { STATUS_LABEL, TIMELINE, type Status } from "../domain/order-status";
+import { STATUS_LABEL, TIMELINE, timelineIndex, type Status } from "../domain/order-status";
 import { formatDate, formatINR, formatKg, maskPhone, orderNumber } from "../lib/format";
 import type { schema } from "../db";
 
@@ -11,7 +11,7 @@ const GRIND: Record<string, string> = { fine: "Fine", medium: "Medium", coarse: 
 export function OrderPage(props: { order: Order; items: Item[]; upiId: string; whatsappNumber: string; justPlaced: boolean; url: string }) {
   const { order: o, items } = props;
   const status = o.status as Status;
-  const idx = TIMELINE.indexOf(status);
+  const idx = timelineIndex(status);
   const num = orderNumber(o.seq);
   const blend = items.map((i) => `${i.grainName} ${formatKg(i.grams)}`).join(", ");
   const waText = `Hi! I placed order ${num}: ${formatKg(o.sizeGrams)} (${blend}), ${GRIND[o.grind]} grind, ${formatDate(o.deliveryDate)} ${o.slotLabel}. Tower ${o.tower}, Flat ${o.flat}. ${props.url}`;
@@ -52,8 +52,8 @@ export function OrderPage(props: { order: Order; items: Item[]; upiId: string; w
             <p><span class="badge CANCELLED">Cancelled</span></p>
           ) : (
             <ol class="tl">
-              {TIMELINE.map((st, i) => (
-                <li class={i < idx ? "done" : i === idx ? (st === "DELIVERED" ? "done" : "cur") : ""}>{STATUS_LABEL[st]}</li>
+              {TIMELINE.map((step, i) => (
+                <li class={i < idx || (i === idx && status === "DELIVERED") ? "done" : i === idx ? "cur" : ""}>{step.label}</li>
               ))}
             </ol>
           )}

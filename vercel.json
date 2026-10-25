@@ -2,6 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "npm install",
-  "buildCommand": "node scripts/build.mjs --vercel",
-  "regions": ["bom1"]
+  "buildCommand": "node scripts/build.mjs --vercel && npm run db:migrate",
+  "regions": [
+    "bom1"
+  ]
 }

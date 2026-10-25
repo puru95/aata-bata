@@ -185,3 +185,8 @@ tr:last-child td{border-bottom:0}
 input.sm{width:100px;min-height:40px;padding:6px 8px;border:1px solid var(--glass-line);border-radius:10px;background:var(--field);text-align:right}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 @media (max-width:360px){.opt{font-size:14px}.stp button{width:44px;height:44px}}
+
+/* shop panel */
+.f input.pin{font-size:28px;font-weight:800;letter-spacing:.6em;text-align:center;padding-left:.6em}
+.card details summary::-webkit-details-marker{display:none}
+.chk{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600}.chk input{width:22px;height:22px;flex:none;accent-color:var(--stone)}

@@ -21,8 +21,9 @@ async function connect(): Promise<{ db: DB; kind: "postgres" | "pglite"; close: 
   }
   const { PGlite } = await import("@electric-sql/pglite");
   const { drizzle } = await import("drizzle-orm/pglite");
-  mkdirSync(".data", { recursive: true });
-  const client = new PGlite(".data/pglite");
+  const dir = process.env.PGLITE_DIR || ".data/pglite"; // e2e tests use their own folder
+  mkdirSync(dir, { recursive: true });
+  const client = new PGlite(dir);
   return { db: drizzle(client, { schema }) as unknown as DB, kind: "pglite", close: () => client.close() };
 }
 
