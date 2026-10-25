@@ -12,7 +12,7 @@ export function Layout(props: { title?: string; description?: string; children: 
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <title>{title}</title>
         <meta name="description" content={props.description ?? BRAND.description} />
-        <meta name="theme-color" content="#2f4237" />
+        <meta name="theme-color" content="#d9b273" />
         <meta property="og:title" content={title} />
         <meta property="og:description" content={props.description ?? BRAND.description} />
         {props.noindex ? <meta name="robots" content="noindex" /> : null}
@@ -21,6 +21,10 @@ export function Layout(props: { title?: string; description?: string; children: 
       </head>
       <body class={props.bodyClass}>
         {props.children}
+        <p class="credit">
+          Photo: <a href="https://commons.wikimedia.org/wiki/File:Sunset-over-the-wheat-field-featured.jpg" rel="noopener" target="_blank">Dreamy Pixel</a>,{" "}
+          <a href="https://creativecommons.org/licenses/by/4.0/" rel="noopener" target="_blank">CC BY 4.0</a>
+        </p>
         {props.script ? <script>{raw(props.script)}</script> : null}
       </body>
     </html>

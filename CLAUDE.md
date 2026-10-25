@@ -5,7 +5,9 @@ Custom chakki-atta blends, pilot in Purvanchal Royal City, Greater Noida. Read `
 ## Top priority: fast and light
 Customers open this from WhatsApp on cheap Android phones over patchy 4G.
 - Home page is one request (~10 KB gzipped). Keep it under ~20 KB.
-- No client frameworks, web fonts, images or third-party scripts. Inline SVG for icons.
+- No client frameworks, web fonts or third-party scripts. Inline SVG for icons.
+- One image only: the wheat-field background (`src/client/wheat.webp`, ~21 KB, served at `/bg-1.webp`, cached for a year; a 200-byte copy is inlined in the CSS so first paint never waits for it). Keep its CC BY 4.0 credit in the layout footer. Change the URL if the file changes.
+- Glass look: `backdrop-filter` only on top-level panels (`.step`, `.card`, `.tracker`, `.bar`, …), never on small repeated controls. Cheap phones scroll slowly with many blurred layers.
 - CSS (`src/client/styles.css`) and builder JS (`src/client/builder.ts`) are bundled by `scripts/build.mjs` and inlined into pages.
 
 ## Stack

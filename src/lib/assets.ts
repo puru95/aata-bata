@@ -19,3 +19,8 @@ function read(file: keyof typeof baked) {
 
 export const css = () => read("styles.css");
 export const builderJs = () => read("builder.js");
+
+// Wheat-field background photo (~21 KB WebP). Served at a versioned URL with a long cache; rename the URL if the file changes.
+declare const __INLINE_BG__: string | undefined;
+let bg: Buffer | undefined;
+export const backgroundWebp = () => (bg ??= typeof __INLINE_BG__ === "string" ? Buffer.from(__INLINE_BG__, "base64") : readFileSync("src/client/wheat.webp"));

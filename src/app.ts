@@ -12,6 +12,7 @@ import { STATUSES, type Status } from "./domain/order-status";
 import { HomePage } from "./views/home";
 import { MessagePage, MyOrdersPage, OrderPage } from "./views/customer";
 import { LoginPage, OrderDetailPage, OrdersPage, PricesPage } from "./views/ops/pages";
+import { backgroundWebp } from "./lib/assets";
 
 export const app = new Hono();
 
@@ -99,6 +100,12 @@ app.get("/favicon.svg", (c) => {
     200,
     { "Content-Type": "image/svg+xml" },
   );
+});
+
+// Background photo: "Sunset over the wheat field" by Dreamy Pixel, CC BY 4.0 (credit shown in the page footer).
+app.get("/bg-1.webp", (c) => {
+  c.header("Cache-Control", "public, max-age=31536000, immutable");
+  return c.body(new Uint8Array(backgroundWebp()), 200, { "Content-Type": "image/webp" });
 });
 
 app.get("/health", (c) => c.text("ok"));

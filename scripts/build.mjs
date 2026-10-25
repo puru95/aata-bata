@@ -9,7 +9,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 const args = new Set(process.argv.slice(2));
 const clientOpts = [
   { entryPoints: ["src/client/builder.ts"], outfile: "dist/client/builder.js", bundle: true, format: "iife", target: "es2020", minify: true },
-  { entryPoints: ["src/client/styles.css"], outfile: "dist/client/styles.css", bundle: true, minify: true, target: ["chrome90", "safari14"] },
+  { entryPoints: ["src/client/styles.css"], outfile: "dist/client/styles.css", bundle: true, minify: true, external: ["/bg-*"], target: ["chrome90", "safari14"] },
 ];
 
 async function buildClient() {
@@ -32,6 +32,7 @@ async function buildServer(entry, outfile, extra = {}) {
     define: {
       __INLINE_CSS__: JSON.stringify(readFileSync("dist/client/styles.css", "utf8")),
       __INLINE_JS__: JSON.stringify(readFileSync("dist/client/builder.js", "utf8")),
+      __INLINE_BG__: JSON.stringify(readFileSync("src/client/wheat.webp").toString("base64")),
       "process.env.NODE_ENV": '"production"',
     },
     // Some bundled CommonJS deps call require(); give ESM a require().
